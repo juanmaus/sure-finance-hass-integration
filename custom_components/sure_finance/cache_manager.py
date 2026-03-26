@@ -5,7 +5,7 @@ import logging
 import pickle
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from redis.asyncio import Redis
 
@@ -13,8 +13,15 @@ logger = logging.getLogger(__name__)
 
 
 class CacheManager:
-    def __init__(self, cache_dir: Optional[Path] = None, redis_url: Optional[str] = None, default_ttl: int = 3600):
-        self.cache_dir = cache_dir or Path(".cache")
+    def __init__(self, cache_dir: Optional[Union[str, Path]] = None, redis_url: Optional[str] = None,
+                 default_ttl: int = 3600):
+        # Ensure cache_dir is always a Path object, regardless of input type
+        if cache_dir is None:
+            self.cache_dir = Path(".cache")
+        elif isinstance(cache_dir, str):
+            self.cache_dir = Path(cache_dir)
+        else:
+            self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.redis_url = redis_url
         self._redis: Optional[Redis] = None

@@ -1,0 +1,6 @@
+# Sure Finance Services (no cache variant)
+
+refresh_data:
+  name: Refresh Data
+  description: Manually refresh all Sure Finance sensors now
+  fields: {}

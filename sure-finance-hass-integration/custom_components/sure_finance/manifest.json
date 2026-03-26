@@ -1,0 +1,17 @@
+{
+  "domain": "sure_finance",
+  "name": "Sure Finance",
+  "version": "1.0.0",
+  "documentation": "https://github.com/juanmaus/sure-finance-hass-integration",
+  "issue_tracker": "https://github.com/juanmaus/sure-finance-hass-integration/issues",
+  "dependencies": [],
+  "codeowners": ["@juanmaus"],
+  "requirements": [
+    "aiohttp>=3.9.0",
+    "pydantic>=2.5.0",
+    "python-dateutil>=2.8.2"
+  ],
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "loggers": ["sure_finance"]
+}
