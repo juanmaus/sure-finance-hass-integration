@@ -1,0 +1,11 @@
+# Sure Finance Services
+
+refresh_data:
+  name: Refresh Data
+  description: Manually refresh all data from Sure Finance API
+  fields: {}
+
+clear_cache:
+  name: Clear Cache
+  description: Clear all cached Sure Finance data
+  fields: {}
