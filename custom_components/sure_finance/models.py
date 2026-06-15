@@ -111,7 +111,6 @@ class Account(BaseEntity):
 
 class Category(BaseEntity):
     name: str
-    classification: CategoryClassification
     color: str
     icon: str
     parent_id: Optional[UUID] = None
