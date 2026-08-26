@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Configure Sure Finance",
-        "description": "Enter your Sure Finance API credentials. You can generate an API key at {api_key_url}",
+        "description": "Enter your Sure Finance API credentials.",
         "data": {
           "api_key": "API Key",
           "host": "API Host (Base URL)",
@@ -12,9 +12,7 @@
           "enable_cashflow_sensor": "Enable Cashflow Sensor",
           "enable_outflow_sensor": "Enable Outflow Sensor",
           "enable_liability_sensor": "Enable Liability Sensor",
-          "enable_account_sensors": "Enable Account Sensors",
-          "enable_transaction_sensors": "Enable Transaction Sensors",
-          "cache_duration": "Cache Duration (seconds)"
+          "enable_account_sensors": "Enable Account Sensors"
         }
       }
     },
@@ -25,23 +23,6 @@
     },
     "abort": {
       "already_configured": "This API key is already configured"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Sure Finance Options",
-        "data": {
-          "update_interval": "Update Interval (seconds)",
-          "currency": "Currency",
-          "enable_cashflow_sensor": "Enable Cashflow Sensor",
-          "enable_outflow_sensor": "Enable Outflow Sensor",
-          "enable_liability_sensor": "Enable Liability Sensor",
-          "enable_account_sensors": "Enable Account Sensors",
-          "enable_transaction_sensors": "Enable Transaction Sensors",
-          "cache_duration": "Cache Duration (seconds)"
-        }
-      }
     }
   }
 }

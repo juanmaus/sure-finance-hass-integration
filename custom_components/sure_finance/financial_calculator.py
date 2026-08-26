@@ -1,159 +1,160 @@
-"""Financial calculation logic (integration copy)."""
+"""Financial calculation utilities (no cache, dict-based).
 
-import logging
+Works directly with API response dicts.
+"""
+from __future__ import annotations
+
 from collections import defaultdict
-from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
-
-from .models import (
-    Account,
-    AccountBalance,
-    AccountClassification,
-    CashflowItem,
-    CashflowSummary,
-    FinancialSummary,
-    Transaction,
-    TransactionType
-)
-
-logger = logging.getLogger(__name__)
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from typing import Any, Dict, List, Optional
 
 
-class FinancialCalculator:
-    def __init__(self, currency: str = "USD"):
-        self.currency = currency
-
-    def calculate_financial_summary(self, accounts: List[Account], transactions: Optional[List[Transaction]] = None) -> FinancialSummary:
-        summary = FinancialSummary(currency=self.currency)
-        for account in accounts:
-            balance = Decimal(str(account.balance or 0))
-            if account.classification == AccountClassification.ASSET:
-                summary.total_assets += balance
-            elif account.classification == AccountClassification.LIABILITY:
-                summary.total_liabilities += abs(balance)
-        summary.net_worth = summary.total_assets - summary.total_liabilities
-        if transactions:
-            for transaction in transactions:
-                amount = Decimal(str(transaction.amount))
-                if transaction.classification == TransactionType.INCOME.value:
-                    summary.total_cashflow += amount
-                elif transaction.classification == TransactionType.EXPENSE.value:
-                    summary.total_outflow += abs(amount)
-        return summary
-
-    def calculate_cashflow_summary(self, transactions: List[Transaction], period_start: datetime, period_end: datetime) -> CashflowSummary:
-        summary = CashflowSummary(period_start=period_start, period_end=period_end, currency=self.currency)
-        period_transactions = [t for t in transactions if period_start <= t.date <= period_end]
-        for transaction in period_transactions:
-            amount = Decimal(str(transaction.amount))
-            category_name = transaction.category.name if transaction.category else "Uncategorized"
-            if transaction.classification == TransactionType.INCOME.value:
-                summary.total_income += amount
-                summary.income_by_category[category_name] = summary.income_by_category.get(category_name, Decimal("0")) + amount
-            elif transaction.classification == TransactionType.EXPENSE.value:
-                amount_abs = abs(amount)
-                summary.total_expenses += amount_abs
-                summary.expenses_by_category[category_name] = summary.expenses_by_category.get(category_name, Decimal("0")) + amount_abs
-        summary.net_cashflow = summary.total_income - summary.total_expenses
-        return summary
-
-    def get_account_balances(self, accounts: List[Account]) -> List[AccountBalance]:
-        balances: List[AccountBalance] = []
-        for account in accounts:
-            balances.append(AccountBalance(
-                account_id=account.id,
-                account_name=account.name,
-                balance=Decimal(str(account.balance or 0)),
-                currency=account.currency or self.currency,
-                classification=account.classification or AccountClassification.ASSET,
-                last_updated=account.updated_at or datetime.utcnow()
-            ))
-        return balances
-
-    def get_cashflow_items(self, transactions: List[Transaction], transaction_type: Optional[TransactionType] = None) -> List[CashflowItem]:
-        items: List[CashflowItem] = []
-        for transaction in transactions:
-            if transaction_type:
-                if transaction_type == TransactionType.INCOME and transaction.classification != TransactionType.INCOME.value:
-                    continue
-                elif transaction_type == TransactionType.EXPENSE and transaction.classification != TransactionType.EXPENSE.value:
-                    continue
-            items.append(CashflowItem(
-                date=transaction.date,
-                amount=Decimal(str(transaction.amount)),
-                currency=transaction.currency,
-                category=transaction.category.name if transaction.category else None,
-                merchant=transaction.merchant.name if transaction.merchant else None,
-                description=transaction.name,
-                transaction_id=transaction.id
-            ))
-        return items
-
-    def calculate_monthly_trends(self, transactions: List[Transaction], months: int = 12) -> Dict[str, CashflowSummary]:
-        end_date = datetime.utcnow()
-        trends: Dict[str, CashflowSummary] = {}
-        for _ in range(months):
-            month_end = end_date.replace(day=1) - timedelta(days=1)
-            month_start = month_end.replace(day=1)
-            month_key = month_start.strftime("%Y-%m")
-            trends[month_key] = self.calculate_cashflow_summary(transactions, month_start, month_end)
-            end_date = month_start - timedelta(days=1)
-        return trends
-
-    def calculate_category_breakdown(self, transactions: List[Transaction], transaction_type: TransactionType) -> Dict[str, Decimal]:
-        breakdown: Dict[str, Decimal] = defaultdict(Decimal)
-        for transaction in transactions:
-            if transaction_type == TransactionType.INCOME and transaction.classification != TransactionType.INCOME.value:
-                continue
-            elif transaction_type == TransactionType.EXPENSE and transaction.classification != TransactionType.EXPENSE.value:
-                continue
-            category_name = transaction.category.name if transaction.category else "Uncategorized"
-            amount = abs(Decimal(str(transaction.amount)))
-            breakdown[category_name] += amount
-        return dict(breakdown)
-
-    def calculate_liability_summary(self, accounts: List[Account]) -> Tuple[Decimal, List[AccountBalance]]:
-        total_liabilities = Decimal("0")
-        liability_accounts: List[AccountBalance] = []
-        for account in accounts:
-            if account.classification == AccountClassification.LIABILITY:
-                balance = abs(Decimal(str(account.balance or 0)))
-                total_liabilities += balance
-                liability_accounts.append(AccountBalance(
-                    account_id=account.id,
-                    account_name=account.name,
-                    balance=balance,
-                    currency=account.currency or self.currency,
-                    classification=AccountClassification.LIABILITY,
-                    last_updated=account.updated_at or datetime.utcnow()
-                ))
-        return total_liabilities, liability_accounts
-
-    def calculate_savings_rate(self, income: Decimal, expenses: Decimal) -> Decimal:
-        if income <= 0:
+def _parse_decimal(value: Any) -> Decimal:
+    """Parse numeric values that may include currency symbols and locale separators.
+    Returns Decimal(0) if parsing fails.
+    """
+    if value is None or value == "":
+        return Decimal("0")
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int, float)):
+        return Decimal(str(value))
+    if isinstance(value, str):
+        s = value.strip()
+        negative = False
+        if s.startswith("(") and s.endswith(")"):
+            negative = True
+            s = s[1:-1]
+        import re
+        s = re.sub(r"[^0-9,\.-]", "", s)
+        if s.count("-") > 1:
+            s = s.replace("-", "")
+        s = s if not s.endswith("-") else ("-" + s[:-1])
+        last_dot = s.rfind('.')
+        last_comma = s.rfind(',')
+        if last_dot == -1 and last_comma == -1:
+            normalized = s
+        else:
+            if last_dot > last_comma:
+                decimal_sep = '.'
+                thousand_sep = ','
+            else:
+                decimal_sep = ','
+                thousand_sep = '.'
+            s_wo_thousands = s.replace(thousand_sep, '')
+            if decimal_sep != '.':
+                s_wo_thousands = s_wo_thousands.replace(decimal_sep, '.')
+            normalized = s_wo_thousands
+        try:
+            d = Decimal(normalized)
+            if negative:
+                d = -d
+            return d
+        except (InvalidOperation, ValueError):
             return Decimal("0")
-        savings = income - expenses
-        rate = (savings / income) * 100
-        return max(Decimal("0"), min(Decimal("100"), rate))
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0")
 
-    def detect_recurring_transactions(self, transactions: List[Transaction], threshold_days: int = 35) -> Dict[str, List[Transaction]]:
-        grouped: Dict[str, List[Transaction]] = defaultdict(list)
-        for transaction in transactions:
-            if transaction.merchant:
-                amount_rounded = round(Decimal(str(transaction.amount)), 0)
-                key = f"{transaction.merchant.name}_{amount_rounded}"
-                grouped[key].append(transaction)
-        recurring: Dict[str, List[Transaction]] = {}
-        for key, trans_list in grouped.items():
-            if len(trans_list) >= 2:
-                trans_list.sort(key=lambda t: t.date)
-                is_recurring = True
-                for i in range(1, len(trans_list)):
-                    days_diff = (trans_list[i].date - trans_list[i-1].date).days
-                    if days_diff > threshold_days:
-                        is_recurring = False
-                        break
-                if is_recurring:
-                    recurring[key] = trans_list
-        return recurring
+
+def calculate_financial_summary(accounts: List[Dict[str, Any]], transactions: Optional[List[Dict[str, Any]]], currency: str) -> Dict[str, Any]:
+    total_assets = Decimal("0")
+    total_liabilities = Decimal("0")
+    total_cashflow = Decimal("0")
+    total_outflow = Decimal("0")
+
+    for acc in accounts:
+        bal = _parse_decimal(acc.get("balance"))
+        cls = (acc.get("classification") or "").lower()
+        if cls == "asset":
+            total_assets += bal
+        elif cls == "liability":
+            total_liabilities += abs(bal)
+
+    if transactions:
+        for tx in transactions:
+            amt = _parse_decimal(tx.get("amount"))
+            nature = (tx.get("classification") or tx.get("nature") or "").lower()
+            if nature == "income":
+                total_cashflow += amt
+            elif nature == "expense":
+                total_outflow += abs(amt)
+
+    net_worth = total_assets - total_liabilities
+
+    return {
+        "total_cashflow": float(total_cashflow),
+        "total_outflow": float(total_outflow),
+        "total_assets": float(total_assets),
+        "total_liabilities": float(total_liabilities),
+        "net_worth": float(net_worth),
+        "currency": currency,
+        "last_updated": datetime.utcnow().isoformat(),
+    }
+
+
+def get_account_balances(accounts: List[Dict[str, Any]], default_currency: str) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    now = datetime.utcnow().isoformat()
+    for acc in accounts:
+        out.append(
+            {
+                "account_id": acc.get("id"),
+                "account_name": acc.get("name"),
+                "balance": float(_parse_decimal(acc.get("balance"))),
+                "currency": acc.get("currency") or default_currency,
+                "classification": (acc.get("classification") or "asset").lower(),
+                "last_updated": acc.get("updated_at") or now,
+            }
+        )
+    return out
+
+
+def calculate_monthly_cashflow(transactions: List[Dict[str, Any]], start: datetime, end: datetime, currency: str) -> Dict[str, Any]:
+    inc = Decimal("0")
+    exp = Decimal("0")
+    inc_by_cat: Dict[str, Decimal] = defaultdict(Decimal)
+    exp_by_cat: Dict[str, Decimal] = defaultdict(Decimal)
+
+    for tx in transactions:
+        # Filter by date
+        try:
+            # tx['date'] can be YYYY-MM-DD or ISO; handle both
+            tx_date_str = tx.get("date")
+            if not tx_date_str:
+                continue
+            if len(tx_date_str) == 10:
+                tx_date = datetime.strptime(tx_date_str, "%Y-%m-%d")
+            else:
+                tx_date = datetime.fromisoformat(tx_date_str.replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception:
+            continue
+        if not (start <= tx_date <= end):
+            continue
+
+        amt = _parse_decimal(tx.get("amount"))
+        nature = (tx.get("classification") or tx.get("nature") or "").lower()
+        cat = (tx.get("category", {}) or {}).get("name") or "Uncategorized"
+
+        if nature == "income":
+            inc += amt
+            inc_by_cat[cat] += amt
+        elif nature == "expense":
+            a = abs(amt)
+            exp += a
+            exp_by_cat[cat] += a
+
+    net = inc - exp
+
+    return {
+        "period_start": start.isoformat(),
+        "period_end": end.isoformat(),
+        "total_income": float(inc),
+        "total_expenses": float(exp),
+        "net_cashflow": float(net),
+        "income_by_category": {k: float(v) for k, v in inc_by_cat.items()},
+        "expenses_by_category": {k: float(v) for k, v in exp_by_cat.items()},
+        "currency": currency,
+    }

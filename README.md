@@ -8,7 +8,7 @@ This is a custom integration for Home Assistant (HACS compatible).
 - Sensors: Net Worth, Total Cashflow (income), Total Outflow (expenses), Total Liability, Monthly Savings Rate
 - Optional per-account balance sensors
 - Config flow (UI) with API Key, API Host, update interval, toggles
-- Caching and retry logic
+- No cache: every refresh reads live from the API
 
 ## Installation (HACS)
 1. In HACS → Integrations → three-dots menu → Custom repositories
@@ -31,7 +31,6 @@ This is a custom integration for Home Assistant (HACS compatible).
 - Update interval (seconds)
 - Currency code
 - Enable/disable specific sensors (cashflow, outflow, liability, account sensors)
-- Cache duration (seconds)
 
 ## Entities
 - sensor.sure_finance_net_worth
@@ -43,7 +42,6 @@ This is a custom integration for Home Assistant (HACS compatible).
 
 ## Services
 - sure_finance.refresh_data
-- sure_finance.clear_cache
 
 ## Troubleshooting
 - Enable debug logging:

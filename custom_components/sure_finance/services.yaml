@@ -1,11 +1,6 @@
-# Sure Finance Services
+# Sure Finance Services (no cache variant)
 
 refresh_data:
   name: Refresh Data
-  description: Manually refresh all data from Sure Finance API
-  fields: {}
-
-clear_cache:
-  name: Clear Cache
-  description: Clear all cached Sure Finance data
+  description: Manually refresh all Sure Finance sensors now
   fields: {}

@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+test_venv/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.idea/
+.slingshot/
